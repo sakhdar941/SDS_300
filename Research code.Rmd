@@ -1,0 +1,188 @@
+---
+title: "Full code"
+output: html_document
+date: '2023-03-30'
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r, warning=F, echo=FALSE}
+library(tidyverse)
+library(rio)
+library(asbio)
+library(tcltk)
+library(tidyr)
+library(dplyr)
+library(Stat2Data)
+```
+
+```{r}
+Sleep_Efficiency <- read_csv("Sleep_Efficiency.csv")
+Sleep_Efficiency <- import("Sleep_Efficiency.csv")
+```
+
+Renaming variables
+
+```{r}
+sleep_dataset <- Sleep_Efficiency|>
+  rename(wakeup_time = `Wakeup time`, sleep_duration = `Sleep duration`, sleep_efficiency = `Sleep efficiency`, rem_sleep_percentage = `REM sleep percentage`, caffeine_consumption = `Caffeine consumption`, age = Age, bedtime = Bedtime)
+```
+
+Selecting variables of interest
+
+```{r}
+sleep_dataset <- sleep_dataset|>
+  select(wakeup_time, bedtime, sleep_duration, sleep_efficiency, rem_sleep_percentage, caffeine_consumption, age)
+
+```
+
+Creating age groups
+
+```{r}
+sleep_dataset <- sleep_dataset %>% 
+  filter(age >= 18) %>%
+  mutate(
+    age_group = dplyr::case_when(
+      age >= 18 & age <= 23 ~ "18-23", ##typical college students 
+      age >= 24 & age <= 30 ~ "24-30", ##young working population 
+      age >= 31 & age <= 40 ~ "31-40", ##middle working age  
+      age >= 41 & age <= 50 ~ "41-50", ##middle working age 
+      age >= 51 & age <= 60 ~ "51-60", ##middle working age 
+      age >= 61 & age <= 70 ~ "61-70", #typical retirement/end of career phase 
+    ),
+     age_group = factor(
+      age_group,
+      level = c("18-23", "24-30","31-40", "41-50", "51-60", "61-70")
+    )
+  )
+```
+
+```{r}
+sleep_dataset <- sleep_dataset %>%
+    mutate(levels = cut(caffeine_consumption, breaks = c(-Inf, 0,  25, 50, 75),
+        labels = c("None", "Low", "Medium", "High")))
+```
+
+```{r}
+sleep_dataset <- sleep_dataset  |>
+  drop_na("levels", "age_group")
+```
+
+add ggplot 
+
+Checking assumptions
+
+Summary statistics 
+
+```{r}
+sleep_dataset |>
+  group_by(age_group) |>
+  summarise(Group_mean=mean(rem_sleep_percentage), Sample_size=n(), standard_dev=sd(rem_sleep_percentage))
+```
+
+
+```{r}
+sleep_dataset |>
+  group_by(age_group) |>
+  summarise(Group_mean=mean(caffeine_consumption), Sample_size=n(), standard_dev=sd(caffeine_consumption))
+```
+
+```{r, echo=FALSE}
+qplot(x=age_group, y= rem_sleep_percentage, data=sleep_dataset, ylab="REM Sleep percentage", geom="boxplot") +
+  theme(axis.title = element_text(size = 20))
+```
+Pretty symmetrical in terms of variability 
+One outlier
+
+```{r}
+young <- sleep_dataset %>%
+  filter(age_group == "18-23")
+young_working <- sleep_dataset %>%
+  filter(age_group == "24-30")
+middle_working <- sleep_dataset %>%
+  filter(age_group == "31-40")
+middle_working1 <- sleep_dataset %>%
+  filter(age_group == "31-40")
+middle_working2 <- sleep_dataset %>%
+  filter(age_group == "41-50")
+near_retirement<- sleep_dataset %>%
+  filter(age_group == "51-60")
+typical_retirement <- sleep_dataset %>%
+  filter(age_group == "61-70")
+```
+
+```{r}
+ggplot(sleep_dataset, aes(x = levels, y = rem_sleep_percentage, color = age_group)) +
+  geom_point()
+```
+
+Correlation
+```{r}
+cor(young$caffeine_consumption,young$rem_sleep_percentage)
+```
+
+```{r}
+cor(young_working$caffeine_consumption,young_working$rem_sleep_percentage)
+```
+```{r}
+cor(middle_working$caffeine_consumption,middle_working$rem_sleep_percentage)
+```
+```{r}
+cor(middle_working1$caffeine_consumption,middle_working1$rem_sleep_percentage)
+```
+```{r}
+cor(middle_working2$caffeine_consumption,middle_working2$rem_sleep_percentage)
+```
+```{r}
+cor(near_retirement$caffeine_consumption,near_retirement$rem_sleep_percentage)
+```
+```{r}
+cor(typical_retirement$caffeine_consumption,typical_retirement$rem_sleep_percentage)
+```
+ANOVA interaction model 
+```{r}
+aov_sleep <- aov(rem_sleep_percentage~levels*age_group, data=sleep_dataset)
+summary(aov_sleep)
+```
+
+**Logistic regression model**
+
+```{r}
+model <- glm(age_group~ levels, data = sleep_dataset, family = binomial)
+summary(model)
+```
+
+
+```{r}
+# Create a contingency table of the two categorical variables
+cont_table <- table(sleep_dataset$levels, sleep_dataset$age_group)
+
+# Run a chi-squared test
+chi_squared <- chisq.test(cont_table)
+
+# Print the results of the chi-squared test
+print(chi_squared)
+```
+P value: very small reject null - there is a difference in age group and caffeine consumption 
+
+```{r}
+with(sleep_dataset,interaction.plot(age_group, levels, rem_sleep_percentage))
+```
+
+
+```{r}
+write.csv(sleep_dataset, "New sleep data.csv", row.names=FALSE)
+```
+
+Post ANOVA models 
+```{r}
+plot(aov_sleep, which=1)
+```
+
+```{r}
+plot(aov_sleep, which=2)
+```
