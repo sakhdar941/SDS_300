@@ -18,12 +18,15 @@ library(tcltk)
 library(tidyr)
 library(dplyr)
 library(Stat2Data)
+library(ggplot2)
 ```
 
 ```{r}
 Sleep_Efficiency <- read_csv("Sleep_Efficiency.csv")
 Sleep_Efficiency <- import("Sleep_Efficiency.csv")
 ```
+
+DATA CLEANING
 
 Renaming variables
 
@@ -61,29 +64,27 @@ sleep_dataset <- sleep_dataset %>%
   )
 ```
 
+Categorizing caffeine levels
+
 ```{r}
 sleep_dataset <- sleep_dataset %>%
     mutate(levels = cut(caffeine_consumption, breaks = c(-Inf, 0,  25, 50, 75),
         labels = c("None", "Low", "Medium", "High")))
 ```
 
+Dropping missing values
+
 ```{r}
 sleep_dataset <- sleep_dataset  |>
   drop_na("levels", "age_group")
 ```
 
-add ggplot 
+Checking conditions for ANOVA (PRE)
 
-Checking assumptions
-
-Summary statistics 
-
-```{r}
-sleep_dataset |>
-  group_by(age_group) |>
-  summarise(Group_mean=mean(rem_sleep_percentage), Sample_size=n(), standard_dev=sd(rem_sleep_percentage))
+```{r, echo=FALSE}
+qplot(x=age_group, y= rem_sleep_percentage, data=sleep_dataset, ylab="REM Sleep percentage", geom="boxplot") +
+  theme(axis.title = element_text(size = 20))
 ```
-
 
 ```{r}
 sleep_dataset |>
@@ -91,12 +92,32 @@ sleep_dataset |>
   summarise(Group_mean=mean(caffeine_consumption), Sample_size=n(), standard_dev=sd(caffeine_consumption))
 ```
 
-```{r, echo=FALSE}
-qplot(x=age_group, y= rem_sleep_percentage, data=sleep_dataset, ylab="REM Sleep percentage", geom="boxplot") +
-  theme(axis.title = element_text(size = 20))
+ANOVA Interaction model
+
+```{r}
+aov_sleep <- aov(rem_sleep_percentage~levels*age_group, data=sleep_dataset)
+summary(aov_sleep)
 ```
-Pretty symmetrical in terms of variability 
-One outlier
+
+Interaction model graph
+
+```{r}
+with(sleep_dataset,interaction.plot(age_group, levels, rem_sleep_percentage))
+```
+
+POST ANOVA condition checks
+
+```{r}
+plot(aov_sleep, which=1)
+```
+
+```{r}
+plot(aov_sleep, which=2)
+```
+
+Correlations
+
+Creating new dataframes to examine individual correlations
 
 ```{r}
 young <- sleep_dataset %>%
@@ -106,8 +127,6 @@ young_working <- sleep_dataset %>%
 middle_working <- sleep_dataset %>%
   filter(age_group == "31-40")
 middle_working1 <- sleep_dataset %>%
-  filter(age_group == "31-40")
-middle_working2 <- sleep_dataset %>%
   filter(age_group == "41-50")
 near_retirement<- sleep_dataset %>%
   filter(age_group == "51-60")
@@ -115,12 +134,8 @@ typical_retirement <- sleep_dataset %>%
   filter(age_group == "61-70")
 ```
 
-```{r}
-ggplot(sleep_dataset, aes(x = levels, y = rem_sleep_percentage, color = age_group)) +
-  geom_point()
-```
-
 Correlation
+
 ```{r}
 cor(young$caffeine_consumption,young$rem_sleep_percentage)
 ```
@@ -128,25 +143,26 @@ cor(young$caffeine_consumption,young$rem_sleep_percentage)
 ```{r}
 cor(young_working$caffeine_consumption,young_working$rem_sleep_percentage)
 ```
+
 ```{r}
 cor(middle_working$caffeine_consumption,middle_working$rem_sleep_percentage)
 ```
+
 ```{r}
-cor(middle_working1$caffeine_consumption,middle_working1$rem_sleep_percentage)
+cor(middle_working$caffeine_consumption,middle_working2$rem_sleep_percentage)
 ```
-```{r}
-cor(middle_working2$caffeine_consumption,middle_working2$rem_sleep_percentage)
-```
+
 ```{r}
 cor(near_retirement$caffeine_consumption,near_retirement$rem_sleep_percentage)
 ```
+
 ```{r}
 cor(typical_retirement$caffeine_consumption,typical_retirement$rem_sleep_percentage)
 ```
-ANOVA interaction model 
+
 ```{r}
-aov_sleep <- aov(rem_sleep_percentage~levels*age_group, data=sleep_dataset)
-summary(aov_sleep)
+ggplot(sleep_dataset, aes(x = levels, y = rem_sleep_percentage, color = age_group)) +
+  geom_point() 
 ```
 
 **Logistic regression model**
@@ -156,33 +172,16 @@ model <- glm(age_group~ levels, data = sleep_dataset, family = binomial)
 summary(model)
 ```
 
+Chi Squared
 
 ```{r}
-# Create a contingency table of the two categorical variables
 cont_table <- table(sleep_dataset$levels, sleep_dataset$age_group)
-
-# Run a chi-squared test
 chi_squared <- chisq.test(cont_table)
-
-# Print the results of the chi-squared test
 print(chi_squared)
 ```
-P value: very small reject null - there is a difference in age group and caffeine consumption 
 
-```{r}
-with(sleep_dataset,interaction.plot(age_group, levels, rem_sleep_percentage))
-```
-
+Creating csv with final dataframe
 
 ```{r}
 write.csv(sleep_dataset, "New sleep data.csv", row.names=FALSE)
-```
-
-Post ANOVA models 
-```{r}
-plot(aov_sleep, which=1)
-```
-
-```{r}
-plot(aov_sleep, which=2)
 ```
